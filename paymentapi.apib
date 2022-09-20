@@ -1,0 +1,371 @@
+FORMAT: 1A
+HOST: https://api.inch.ru/v1/
+
+# SVC Payments Api
+
+Описание методов взаимодействия c системой оплаты DTS
+
+Для авторизации в заголовке запроса необходимо указать "Project ID" и "Project Secret" 
+
+## Точки продаж [/points]
+Выводит список всех активных точек продаж
+
+### Получение списка точек продаж [GET]
+*Описание Json*
+* `points` - массив с объектами точек продаж
+* * `point_id` - id точки
+* * `point_name` - название точки
+* * `point_type` - тип точки ( cafe - кафе , self-service - станция самообслуживания)
+* * `address` - этаж установки
+* * `descr` - описание
+* * `merc_name` - название юр лица, на которое зарегистрирована ккт
+* * `username` - hostname точки
+
++ Request
++ Headers
+      X-Project-Id: <PROJECT-ID>
+      X-Project-Secret: <PROJECT-SECRET>
+      
++ Response 200 (application/json)
+
+    {
+    "points": [ 
+        {
+            "address": "г. Москва, Нижний Сусальный пер, д 5, стр 2",
+            "descr": "",
+            "merc_name": "ООО  \"Еда\"",
+            "point_id": 653,
+            "point_name": "GlowByte Consulting",
+            "point_type": "self-service",
+            "username": "PP-glowbyteconsulting"
+        }
+    ]
+}
+
+
++ Response 404 (application/json)
+   
+   
+## Каталог товаров [/catalog]
+Выводит список всех активных товаров в каталоге
+
+### Получение списка товаров [GET]
+*Описание Json*
+* `items` - массив с объектами товаров 
+* * `category_id` - id категории
+* * `category_name` - название категории
+* * `item_id` - id товара
+* * `item_name` - название товара
+* * `shelf_life_hours` - срок годности(0 если не указано)
+* * `barcodes` - массив штрихкодов у товара (может быть null)
++ Request
++ Headers
+      X-Project-Id: <PROJECT-ID>
+      X-Project-Secret: <PROJECT-SECRET>
+      
++ Response 200 (application/json)
+{
+    "items": [ 
+        {
+            "category_id": 102,
+            "category_name": "Выпечка",
+            "item_id": 2761,
+            "item_name": "Морковный кекс",
+            "shelf_life_hours": 0,
+            "barcodes": [
+                "2100000000730"
+            ]
+        }
+
+    ]
+}
+
+
++ Response 404 (application/json)
+
+## Платежи [/payments]
+Выводит массив успешных платежей, созданных на точке продаж.
+
+Для запроса списка платежей, необходимо передать порядковый номер платежа, 
+от(`from_payment_id`) которого (включетельно) и до(`to_payment_id`) которого(включетельно)
+необходимо вывести данные.
+
+Если `to_payment_id` не указан, будет выведен список существующих платежей, 
+где `from_payment_id` = `last_payment_id` - `limit`, а `to_payment_id` = `last_payment_id`.
+
+Если оба параметра не указаны, будут выведены последние платежи размером `limit`.
+
+`limit` = 500 платежей
+
+Нижняя граница `from_payment_id` = 2889867
+
+Для запроса платежей только по определенной точке продажи, необходимо указать `point_id` из метода [/points]
+
+
+### Получение списка платежей  [GET]
+*Описание Json*
+
+* `meta` - объект с дополнительной информацией
+* * `size` - размер массива payments
+* * `last_order_stamp` - время последнего платежа в unixtime (UTC)
+* * `last_payment_id` - id последнего платежа 
+* `payments` - массив c платежами
+* * `unique_guid` - уникальный guid платежа
+* * `summ` - общая стоимость платежа
+* * `point_id` - id точки продаж
+* * `payment_id` - id платежа
+* * `kkt_receipt` - объект с информацией о чеке из ккт (может быть пустым объектом, так как доставка чеков совершается в фоновом режиме и чек ккт может прийти позже, чем платеж, описание тегов чека можно найти в 54-ФЗ (https://www.consultant.ru/document/cons_doc_LAW_214339/2f816c9e733702f1405ae9cd34e1d7d472e138ca/))
+* * `order_stamp` - время платежа в unixtime (UTC)
+* * `items` - массив с купленными товарами 
+* * * `item_price` - цена товара в копейках с учетом сделанной скидки
+* * * `item_id` - цена товара в копейках с учетом сделанной скидки
+* * * `old_item_price` - цена товара в копейках без учета скидки
+* * * `name` - название товара
+* * * `quantity` - кол-во товара
+* * * `sku` - артикур товара
+* * * `barcodes` - массив штрихкодов у товара (может быть null)
+* * `pay_methods` - массив со способами оплаты, которыми был закрыт платеж.
+* * * `method` - способ оплаты ('card' - банковская карта, 'cash' - наличные , 'obedru' - карты питания Obed.Ru, 'foodcard' - карта питания FoodCards)
+* * * `amount` - сумма, оплаченная данным способом оплаты
+* * * `card_num` - id способа оплаты, чаще всего номер карты
+
++ Request
+
++ Headers
+      X-Project-Id: <PROJECT-ID>
+      X-Project-Secret: <PROJECT-SECRET>
+      
++ Parameters
+    + from_payment_id (optional, number, `2889867`) ... порядковый номер платежа от которого начнется загрузка
+    + to_payment_id (optional, number, `3020712`) ... порядковый номер платежа на котором закончится загрузка
+    + point_id (optional, number, `654`) ... id точки продажи
+
++ Response 200 (application/json)
+
+    {
+     "meta": {
+        "last_order_stamp": 1582668480,
+        "last_payment_id": 3020712,
+        "size": 1
+    },
+    "payments": [ 
+        {
+            "items": [ 
+                {
+                    "item_price": 14320,
+                    "name": "\"Цезарь с курицей\"",
+                    "old_item_price": 17900,
+                    "quantity": 1,
+                    "sku": null,
+                    "barcodes": [
+                        "2100000000846",
+                        "4670042290866"
+                    ]
+                },
+                {
+                    "item_price": 10000,
+                    "name": "Суп-пюре грибной постный 200 г",
+                    "old_item_price": 12500,
+                    "quantity": 1,
+                    "sku": "ТОВ421324",
+                     "barcodes": null
+                }
+            ],
+            "pay_methods": [
+                {
+                    "method" : "card", 
+                    "amount" : 713, 
+                    "card_num" : "************1552"
+                }, 
+                {
+                    "method" : "obedru", 
+                    "amount" : 6002, 
+                    "card_num" : "9026792"
+                }
+            ],
+            "order_stamp": 1582668480,
+            "payment_id": 3020712,
+            "point_id": 775,
+            "summ": 24320,
+            "kkt_receipt": {
+                          "inn": "9701128397",
+                          "sno": 4,
+                          "summ": 9520,
+                          "items": [
+                            {
+                              "name": "Сырники со сливочным сыром",
+                              "price": 9520,
+                              "nds_rate": 6,
+                              "nds_summ": 0,
+                              "quantity": 1,
+                              "item_price": 9520,
+                              "sign_of_method_payment": 4,
+                              "sign_of_subject_payment": 1
+                            }
+                          ],
+                          "cash_summ": 0,
+                          "fd_number": 20680,
+                          "fn_number": "9280440300968330",
+                          "fp_number": 4030047623,
+                          "kkt_number": "0003517280022747",
+                          "cassir_name": "Администратор",
+                          "credit_summ": 0,
+                          "fd_datetime": 1636685460,
+                          "ffd_version": 2,
+                          "pinpad_slip": [
+                            " ",
+                            "        ООО \"ЕДА\"",
+                            "             г. МОСКВА",
+                            "      УЛ.КРАCНАЯ,15",
+                            "Терминал ID: 99430028",
+                            "              Чек 9174",
+                            "               Оплата",
+                            "              ОДОБРЕНО",
+                            "СУММА:                     95.20 RUB",
+                            "       Комиссия не взимается",
+                            "AID: A0000000041010       MASTERCARD",
+                            "Карта: EC/MC               Cless EMV",
+                            "          ************5566",
+                            "TVR: 0000008001                 TSI:",
+                            "Ссылка:                 131686696173",
+                            "Код авторизации:              054037",
+                            "Код ответа:                       00",
+                            "Дата (хост):       12/11/21 04:53:03",
+                            "Дата (терм.):      12/11/21 02:52:44",
+                            " ",
+                            "________________________",
+                            "         (Подпись кассира)",
+                            " ",
+                            "           Сохраните чек",
+                            "===================================="
+                          ],
+                          "shift_number": 392,
+                          "bankcard_summ": 9520,
+                          "pinpad_number": "99430028",
+                          "stationNumber": "1654",
+                          "automate_number": "1654",
+                          "organizationVat": "9701128397",
+                          "prepayment_summ": 0,
+                          "type_of_receipt": 1,
+                          "organizationName": "Общество с ограниченной ответственностью <ЕДА>",
+                          "summ_without_nds": 9520,
+                          "consideration_summ": 0,
+                          "organizationAddress": "77 - Г.Москва, 129281, Ея ул, 37, 1 стр",
+                          "fd_datetime_for_view": "2021.11.12 05:51:00",
+                          "receipt_number_on_shift": 6
+                        },
+            "unique_guid": "D3199736-6E91-41B3-ABAD-CA6BBE747BFC"
+        }
+    ]
+}
+
++ Response 404 (application/json)
+
+## Учет товаров [/stock]
+Выводит массив документов, созданных экспедиторами на точке продаж.
+
+Для запроса списка документов, необходимо передать порядковый номер документа, 
+от(`from_stock_document_id`) которого (включетельно) и до(`to_stock_document_id`) которого(включетельно)
+необходимо вывести данные.
+
+Если `to_stock_document_id` не указан, будет выведен список существующих документов, 
+где `from_stock_document_id` = `last_stock_document_id` - `limit`, а `to_stock_document_id` = `last_stock_document_id`.
+
+Если оба параметра не указаны, будут выведены последние документы размером `limit`.
+
+`limit` = 100 документов
+
+Нижняя граница `from_stock_document_id` = 75000
+
+Для запроса документов только по определенной точке продажи, необходимо указать `point_id` из метода [/points]
+
+Документы могут быть нескольких типов.  
+`inventory` - инвентаризация
+
+`expiry` - списание просроченных
+
+`defect` - брак, списание поврежденных товаров
+
+`movement` - перемещение на другую точку продаж
+
+`load` - загрузка новых товаров с производства
+
+`movement_load` - загрузка перемещенного с другой точки
+
+
+
+### Получение документов учета [GET]
+*Описание Json*
+
+* `meta` - объект с дополнительной информацией 
+* * `size` - размер массива stock_documents
+* * `last_stock_document_id` - id последнего созданного в системе документа 
+* * `last_stock_document_stamp` - время (timestamp) последнего созданного в системе документа 
+* `stock_documents` - массив c документами
+* * `creation_stamp` - дата и время создания документа (unixtime) 
+* * `document_id` - id документа
+* * `document_type` - тип документа из описани выше
+* * `point_stock_id` - UUID документа 
+* * `is_delete` - флаг удаление документа
+* * `delete_reason` - причина удаления
+* * `items` - массив товаров в документе
+* * * `barcodes` - массив штрихкодов у товара 
+* * * `item_id` - внутренний id товара из метода catalog
+* * * `name` - название товара
+* * * `quantity` - кол-во позиций
+* * * `sku` - артикул
+
+
++ Request
++ Headers
+      X-Project-Id: <PROJECT-ID>
+      X-Project-Secret: <PROJECT-SECRET>
+      
++ Parameters
+    + from_stock_document_id (optional, number, `75000`) ... порядковый номер документа от которого начнется загрузка
+    + to_stock_document_id (optional, number, `80908`) ... порядковый номер документа на котором закончится загрузка
+    + point_id (optional, number, `654`) ... id точки продажи
+
++ Response 200 (application/json)
+
+{
+    "meta": {
+        "last_stock_document_id": 80908,
+        "size": 0
+    },
+    "stock_documents": [
+        {
+            "creation_stamp": 1582967011,
+            "document_id": 80908,
+            "delete_reason": "",
+            "is_deleted": false,
+            "document_type": "expiry",
+            "items": [
+                {
+                    "item_id": 1488,
+                    "barcodes": [
+                        "2100000000166",
+                        "2100000000506"
+                    ],
+                    "name": "Запеканка со смородиной",
+                    "quantity": 2,
+                    "sku": "3394"
+                },
+                {
+                    "item_id": 2571,
+                    "barcodes": [
+                        "5411188121916"
+                    ],
+                    "name": "Десерт «Красный Бархат» СЛАДКАЯ РЕЛИГИЯ",
+                    "quantity": 4,
+                    "sku": ""
+                }
+            ],
+            "point_id": 583
+        }
+    ]
+}
+
+
+
++ Response 404 (application/json)
